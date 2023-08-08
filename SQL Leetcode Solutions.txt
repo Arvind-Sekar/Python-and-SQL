@@ -1,0 +1,1827 @@
+Solutions to Leetcode problems:
+
+#175 - Combine Two Tables
+Table: Person
+
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| PersonId    | int     |
+| FirstName   | varchar |
+| LastName    | varchar |
++-------------+---------+
+PersonId is the primary key column for this table.
+Table: Address
+
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| AddressId   | int     |
+| PersonId    | int     |
+| City        | varchar |
+| State       | varchar |
++-------------+---------+
+AddressId is the primary key column for this table.
+
+Write a SQL query for a report that provides the following information for each person in the Person table, regardless if there is an address for each of those people:
+FirstName, LastName, City, State
+
+Solutions:
+SELECT A.FirstName, A.Lastname, B.City, B.State
+from person as A
+left Join Address as B
+on A.PersonId = B.PersonId
+
+----------------------------------------------------------------------------------------------------------
+#176 - Second Highest Salary:
+Write a SQL query to get the second highest salary from the Employee table.
+
++----+--------+
+| Id | Salary |
++----+--------+
+| 1  | 100    |
+| 2  | 200    |
+| 3  | 300    |
++----+--------+
+For example, given the above Employee table, the query should return 200 as the second highest salary.
+If there is no second highest salary, then the query should return null.
+
++---------------------+
+| SecondHighestSalary |
++---------------------+
+| 200                 |
++---------------------+
+
+Solutions:
+a) Simple scalable solution without returning Null for duplicate second highest:
+SELECT TOP 1 Salary as SecondHighestSalary
+FROM (SELECT DISTINCT TOP 2 Salary FROM Employee ORDER BY Salary DESC) AS t
+ORDER BY Salary ASC
+
+b) Best Scalable solution using Window function:
+Select ISNULL((
+Select Distinct Salary
+from (Select *, RANK() Over(Order by Salary DESC) as rank from Employee) as r
+where r.rank=2), Null) as SecondHighestSalary
+
+c) Best Scalable solution using Window function and CTE:
+With t as
+(Select *, RANK() Over(Order by Salary DESC) as rank
+from Employee)
+
+Select ISNULL((Select Distinct Salary from t where rank = 2), Null) as SecondHighestSalary
+
+----------------------------------------------------------------------------------------------------------
+
+#177 - Nth Highest Salary
+
+Write a SQL query to get the nth highest salary from the Employee table.
++----+--------+
+| Id | Salary |
++----+--------+
+| 1  | 100    |
+| 2  | 200    |
+| 3  | 300    |
++----+--------+
+For example, given the above Employee table, the nth highest salary where n = 2 is 200.
+If there is no nth highest salary, then the query should return null.
+
++------------------------+
+| getNthHighestSalary(2) |
++------------------------+
+| 200                    |
++------------------------+
+
+Solution:
+CREATE FUNCTION getNthHighestSalary(@n as int)
+returns int
+begin
+return(
+Select isnull((Select Distinct Salary from (Select *, dense_rank() over(order by Salary DESC) as [Rank] from Employee) t where [Rank] = @n), Null))
+end
+
+NOTE: Window functions can only appear in select or order by statements
+
+**Dont know why dense_rank was used in place of RANK when they gave the condition that if there is no nth highest salary,
+then the query should return null.
+
+----------------------------------------------------------------------------------------------------------
+#178 - Rank Scores
+SQL Schema
+Write a SQL query to rank scores. If there is a tie between two scores, both should have the same ranking.
+Note that after a tie, the next ranking number should be the next consecutive integer value.
+In other words, there should be no "holes" between ranks.
+
++----+-------+
+| Id | Score |
++----+-------+
+| 1  | 3.50  |
+| 2  | 3.65  |
+| 3  | 4.00  |
+| 4  | 3.85  |
+| 5  | 4.00  |
+| 6  | 3.65  |
++----+-------+
+For example, given the above Scores table, your query should generate the following report (order by highest score):
+
++-------+---------+
+| score | Rank    |
++-------+---------+
+| 4.00  | 1       |
+| 4.00  | 1       |
+| 3.85  | 2       |
+| 3.65  | 3       |
+| 3.65  | 3       |
+| 3.50  | 4       |
++-------+---------+
+Important Note: For MySQL solutions, to escape reserved words used as column names,
+you can use an apostrophe before and after the keyword. For example `Rank`.
+
+Solutions:
+a) Simple scalable solution:
+SELECT score, dense_rank() over(order by score desc) as Rank
+from Scores
+
+----------------------------------------------------------------------------------------------------------
+#182 - Duplicate Emails
+Write a SQL query to find all duplicate emails in a table named Person.
+
++----+---------+
+| Id | Email   |
++----+---------+
+| 1  | a@b.com |
+| 2  | c@d.com |
+| 3  | a@b.com |
++----+---------+
+For example, your query should return the following for the above table:
+
++---------+
+| Email   |
++---------+
+| a@b.com |
++---------+
+Note: All emails are in lowercase.
+
+Solutions:
+a) Using a temporary table:
+select Email from
+( select Email, count(Email) as num
+  from Person
+  group by Email
+) as statistic
+where num > 1
+
+b) Direct approach:
+Select Email
+from Person
+group by Email
+having count(Email)>1
+
+c) Using Self Join:
+SELECT DISTINCT p1.Email
+FROM Person p1, Person p2
+WHERE p1.Email = p2.Email and p1.id != p2.id
+
+----------------------------------------------------------------------------------------------------------
+#183 - Customers Who Never Order
+Suppose that a website contains two tables, the Customers table and the Orders table.
+Write a SQL query to find all customers who never order anything.
+
+Table: Customers.
++----+-------+
+| Id | Name  |
++----+-------+
+| 1  | Joe   |
+| 2  | Henry |
+| 3  | Sam   |
+| 4  | Max   |
++----+-------+
+Table: Orders.
++----+------------+
+| Id | CustomerId |
++----+------------+
+| 1  | 3          |
+| 2  | 1          |
++----+------------+
+Using the above tables as example, return the following:
++-----------+
+| Customers |
++-----------+
+| Henry     |
+| Max       |
++-----------+
+
+a) Using a temporary except:
+Select Name as Customers
+from customers
+where ID in (
+Select Id
+from Customers
+except
+Select CustomerId
+from Orders)
+
+b) Using a not statement:
+Select Name as Customers
+from customers
+where ID not in (
+Select Id
+from Customers
+except
+Select CustomerId
+from Orders)
+
+c) Using left join to find the null values and then filtered to them:
+SELECT Name AS 'Customers'
+FROM Customers c
+LEFT JOIN Orders o
+ON c.Id = o.CustomerId
+WHERE o.CustomerId IS NULL
+
+----------------------------------------------------------------------------------------------------------
+#184 - Department Highest Salary
+The Employee table holds all employees. Every employee has an Id, a salary, and there is also a column for the department Id.
+
++----+-------+--------+--------------+
+| Id | Name  | Salary | DepartmentId |
++----+-------+--------+--------------+
+| 1  | Joe   | 70000  | 1            |
+| 2  | Jim   | 90000  | 1            |
+| 3  | Henry | 80000  | 2            |
+| 4  | Sam   | 60000  | 2            |
+| 5  | Max   | 90000  | 1            |
++----+-------+--------+--------------+
+The Department table holds all departments of the company.
+
++----+----------+
+| Id | Name     |
++----+----------+
+| 1  | IT       |
+| 2  | Sales    |
++----+----------+
+Write a SQL query to find employees who have the highest salary in each of the departments.
+For the above tables, your SQL query should return the following rows (order of rows does not matter).
+
++------------+----------+--------+
+| Department | Employee | Salary |
++------------+----------+--------+
+| IT         | Max      | 90000  |
+| IT         | Jim      | 90000  |
+| Sales      | Henry    | 80000  |
++------------+----------+--------+
+Explanation:
+
+Max and Jim both have the highest salary in the IT department and Henry has the highest salary in the Sales department.
+
+Solutions:
+a) Simple solution using subquery/derived table:
+SELECT Department,Employee,Salary FROM (
+Select d.Name as Department, e.Name as Employee, Salary, max(Salary) over(partition by d.Name ) AS max_Salary
+from Department d
+left join Employee e
+on d.Id = e.DepartmentId) T
+WHERE Salary = max_Salary
+
+b) Using CTE & Window functions (best scalable code):
+with w1 as (
+    select rank() over (partition by DepartmentId order by Salary desc) rank,
+    DepartmentId,
+    Name,
+    Salary
+from Employee)
+
+select d.Name as "Department",
+        w1.NAME as "Employee",
+        w1.SALARY as "Salary"
+from w1
+    join Department d
+    on d.Id = w1.DEPARTMENTID and RANK = 1
+
+c) Leetcode solution:
+SELECT Department.name AS Department, Employee.name AS Employee, Salary
+FROM Employee
+JOIN Department
+ON Employee.DepartmentId = Department.Id
+WHERE (Employee.DepartmentId,Salary) IN
+       (SELECT DepartmentId, MAX(Salary)
+        FROM Employee
+        GROUP BY DepartmentId)
+
+----------------------------------------------------------------------------------------------------------
+#185 - Department Top Three Salaries
+
+The Employee table holds all employees. Every employee has an Id, and there is also a column for the department Id.
+
++----+-------+--------+--------------+
+| Id | Name  | Salary | DepartmentId |
++----+-------+--------+--------------+
+| 1  | Joe   | 85000  | 1            |
+| 2  | Henry | 80000  | 2            |
+| 3  | Sam   | 60000  | 2            |
+| 4  | Max   | 90000  | 1            |
+| 5  | Janet | 69000  | 1            |
+| 6  | Randy | 85000  | 1            |
+| 7  | Will  | 70000  | 1            |
++----+-------+--------+--------------+
+The Department table holds all departments of the company.
+
++----+----------+
+| Id | Name     |
++----+----------+
+| 1  | IT       |
+| 2  | Sales    |
++----+----------+
+Write a SQL query to find employees who earn the top three salaries in each of the department.
+For the above tables, your SQL query should return the following rows (order of rows does not matter).
+
++------------+----------+--------+
+| Department | Employee | Salary |
++------------+----------+--------+
+| IT         | Max      | 90000  |
+| IT         | Randy    | 85000  |
+| IT         | Joe      | 85000  |
+| IT         | Will     | 70000  |
+| Sales      | Henry    | 80000  |
+| Sales      | Sam      | 60000  |
++------------+----------+--------+
+Explanation:
+In IT department, Max earns the highest salary, both Randy and Joe earn the second highest salary, and Will earns the third highest salary.
+There are only two employees in the Sales department, Henry earns the highest salary while Sam earns the second highest salary.
+
+Solutions:
+a) My best solution with CTE and window function (most scalable):
+with cte as (
+Select d.Name as Department, e.Name as Employee, Salary, DENSE_rank() over(partition by d.Name order by Salary desc) as r
+from Department as d
+join Employee as e
+on e.DepartmentId = d.Id
+)
+
+Select Department,Employee,Salary
+from cte
+where r <= 3
+
+b) Leetcode solution (MySQL):
+SELECT  d.Name AS 'Department', e1.Name AS 'Employee', e1.Salary
+FROM Employee e1
+JOIN Department d ON e1.DepartmentId = d.Id
+WHERE 3 > (SELECT COUNT(DISTINCT e2.Salary)
+        FROM Employee e2
+        WHERE e2.Salary > e1.Salary AND e1.DepartmentId = e2.DepartmentId)
+
+----------------------------------------------------------------------------------------------------------
+#197 - Rising Temperature
+Table: Weather
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| id            | int     |
+| recordDate    | date    |
+| temperature   | int     |
++---------------+---------+
+id is the primary key for this table.
+This table contains information about the temperature in a certain day.
+
+Write an SQL query to find all dates' id with higher temperature compared to its previous dates (yesterday).
+Return the result table in any order.
+The query result format is in the following example:
+
+Weather
++----+------------+-------------+
+| id | recordDate | Temperature |
++----+------------+-------------+
+| 1  | 2015-01-01 | 10          |
+| 2  | 2015-01-02 | 25          |
+| 3  | 2015-01-03 | 20          |
+| 4  | 2015-01-04 | 30          |
++----+------------+-------------+
+
+Result table:
++----+
+| id |
++----+
+| 2  |
+| 4  |
++----+
+In 2015-01-02, temperature was higher than the previous day (10 -> 25).
+In 2015-01-04, temperature was higher than the previous day (30 -> 20).
+
+a) My best solution with CTE and window function (most scalable):
+With cte as
+(select id, temperature, recordDate, lag(temperature) over(order by recordDate) as prev_temp, lag(recordDate) over(order by recordDate) as prev_date
+from Weather)
+
+Select id
+from cte
+where temperature > prev_temp and dateadd(day, -1, recordDate) = prev_date
+
+b) Leetcode solution (MySQL):
+SELECT  weather.id AS 'Id'
+FROM weather
+JOIN weather w
+ON DATEDIFF(weather.recordDate, w.recordDate) = 1 AND weather.Temperature > w.Temperature
+
+----------------------------------------------------------------------------------------------------------
+#196 - Delete Duplicate Emails
+Write a SQL query to delete all duplicate email entries in a table named Person, keeping only unique emails based on its smallest Id.
+
++----+------------------+
+| Id | Email            |
++----+------------------+
+| 1  | john@example.com |
+| 2  | bob@example.com  |
+| 3  | john@example.com |
++----+------------------+
+Id is the primary key column for this table.
+For example, after running your query, the above Person table should have the following rows:
+
++----+------------------+
+| Id | Email            |
++----+------------------+
+| 1  | john@example.com |
+| 2  | bob@example.com  |
++----+------------------+
+Note:
+Your output is the whole Person table after executing your sql. Use delete statement.
+
+Solutions:
+a) simple Solution:
+DELETE FROM Person WHERE Id NOT IN
+(SELECT * FROM (SELECT MIN(Id) FROM Person GROUP BY Email) as p)
+
+
+b) Using Window function:
+delete from person where ID  in
+(select t.ID from
+                 (select ID, Email, row_number() over (partition by email order by ID asc) as rown
+                  from Person) t
+where rown>1)
+
+----------------------------------------------------------------------------------------------------------
+#511 - Game Play Analysis I
+Table: Activity
++--------------+---------+
+| Column Name  | Type    |
++--------------+---------+
+| player_id    | int     |
+| device_id    | int     |
+| event_date   | date    |
+| games_played | int     |
++--------------+---------+
+(player_id, event_date) is the primary key of this table.
+This table shows the activity of players of some game.
+Each row is a record of a player who logged in and played a number of games (possibly 0) before logging out on some day using some device.
+
+Write an SQL query that reports the first login date for each player.
+The query result format is in the following example:
+
+Activity table:
++-----------+-----------+------------+--------------+
+| player_id | device_id | event_date | games_played |
++-----------+-----------+------------+--------------+
+| 1         | 2         | 2016-03-01 | 5            |
+| 1         | 2         | 2016-05-02 | 6            |
+| 2         | 3         | 2017-06-25 | 1            |
+| 3         | 1         | 2016-03-02 | 0            |
+| 3         | 4         | 2018-07-03 | 5            |
++-----------+-----------+------------+--------------+
+
+Result table:
++-----------+-------------+
+| player_id | first_login |
++-----------+-------------+
+| 1         | 2016-03-01  |
+| 2         | 2017-06-25  |
+| 3         | 2016-03-02  |
++-----------+-------------+
+
+Solutions:
+a) Simple solution using aggregate function (Deterministic function):
+SELECT player_id, MIN(event_date) AS first_login FROM Activity
+GROUP BY player_id
+
+b) Simple solution using analytic function (Indeterministic function):
+Select distinct player_id, min(event_date) over(partition by player_id order by event_date) as first_login
+from Activity
+
+c) Using cte and window function (can also use Rank()):
+With cte as (
+Select *, row_number() over(partition by player_id order by event_date) as num
+from Activity
+)
+
+Select player_id, event_date as first_login
+from cte
+where num=1
+----------------------------------------------------------------------------------------------------------
+#512 - Game Play Analysis II
+Table: Activity
+
++--------------+---------+
+| Column Name  | Type    |
++--------------+---------+
+| player_id    | int     |
+| device_id    | int     |
+| event_date   | date    |
+| games_played | int     |
++--------------+---------+
+(player_id, event_date) is the primary key of this table.
+This table shows the activity of players of some game.
+Each row is a record of a player who logged in and played a number of games (possibly 0) before logging out on some day using some device.
+
+Write a SQL query that reports the device that is first logged in for each player.
+The query result format is in the following example:
+
+Activity table:
++-----------+-----------+------------+--------------+
+| player_id | device_id | event_date | games_played |
++-----------+-----------+------------+--------------+
+| 1         | 2         | 2016-03-01 | 5            |
+| 1         | 2         | 2016-05-02 | 6            |
+| 2         | 3         | 2017-06-25 | 1            |
+| 3         | 1         | 2016-03-02 | 0            |
+| 3         | 4         | 2018-07-03 | 5            |
++-----------+-----------+------------+--------------+
+
+Result table:
++-----------+-----------+
+| player_id | device_id |
++-----------+-----------+
+| 1         | 2         |
+| 2         | 3         |
+| 3         | 1         |
++-----------+-----------+
+
+Solutions:
+a) Using cte and window function (can also use Rank()):
+With cte as(
+Select *,Row_number() over(partition by player_id order by event_date ASC) as num
+from Activity)
+
+Select player_id, device_id
+from cte
+where num=1
+
+b) Using Derived table:
+Select b.player_id, a.device_id
+from Activity a
+join
+(SELECT player_id, MIN(event_date) as min_date
+FROM Activity
+GROUP BY player_id) b
+on a.player_id=b.player_id and a.event_date=b.min_date
+
+----------------------------------------------------------------------------------------------------------
+#534 - Game Play Analysis III (Running Total Problem)
+Table: Activity
+
++--------------+---------+
+| Column Name  | Type    |
++--------------+---------+
+| player_id    | int     |
+| device_id    | int     |
+| event_date   | date    |
+| games_played | int     |
++--------------+---------+
+(player_id, event_date) is the primary key of this table.
+This table shows the activity of players of some game.
+Each row is a record of a player who logged in and played a number of games (possibly 0) before logging out on some day using some device.
+
+Write an SQL query that reports for each player and date, how many games played so far by the player.
+That is, the total number of games played by the player until that date. Check the example for clarity.
+
+The query result format is in the following example:
+
+Activity table:
++-----------+-----------+------------+--------------+
+| player_id | device_id | event_date | games_played |
++-----------+-----------+------------+--------------+
+| 1         | 2         | 2016-03-01 | 5            |
+| 1         | 2         | 2016-05-02 | 6            |
+| 1         | 3         | 2017-06-25 | 1            |
+| 3         | 1         | 2016-03-02 | 0            |
+| 3         | 4         | 2018-07-03 | 5            |
++-----------+-----------+------------+--------------+
+
+Result table:
++-----------+------------+---------------------+
+| player_id | event_date | games_played_so_far |
++-----------+------------+---------------------+
+| 1         | 2016-03-01 | 5                   |
+| 1         | 2016-05-02 | 11                  |
+| 1         | 2017-06-25 | 12                  |
+| 3         | 2016-03-02 | 0                   |
+| 3         | 2018-07-03 | 5                   |
++-----------+------------+---------------------+
+For the player with id 1, 5 + 6 = 11 games played by 2016-05-02, and 5 + 6 + 1 = 12 games played by 2017-06-25.
+For the player with id 3, 0 + 5 = 5 games played by 2018-07-03.
+Note that for each player we only care about the days when the player logged in.
+
+Solutions:
+a) Using Sum Analytic Window Function:
+Select player_id, event_date, Sum(games_played) over(partition by player_id order by event_date) as games_played_so_far
+from Activity
+
+b) Can also be done using Self Joins
+----------------------------------------------------------------------------------------------------------
+#550 - Game Play Analysis IV
+
+Table: Activity
++--------------+---------+
+| Column Name  | Type    |
++--------------+---------+
+| player_id    | int     |
+| device_id    | int     |
+| event_date   | date    |
+| games_played | int     |
++--------------+---------+
+(player_id, event_date) is the primary key of this table.
+This table shows the activity of players of some game.
+Each row is a record of a player who logged in and played a number of games (possibly 0) before logging out on some day using some device.
+
+Write an SQL query that reports the fraction of players that logged in again on the day after the day they first logged in, rounded to 2 decimal places.
+In other words, you need to count the number of players that logged in for at least two consecutive days starting from their first login date, then divide that number by the total number of players.
+
+The query result format is in the following example:
+
+Activity table:
++-----------+-----------+------------+--------------+
+| player_id | device_id | event_date | games_played |
++-----------+-----------+------------+--------------+
+| 1         | 2         | 2016-03-01 | 5            |
+| 1         | 2         | 2016-03-02 | 6            |
+| 2         | 3         | 2017-06-25 | 1            |
+| 3         | 1         | 2016-03-02 | 0            |
+| 3         | 4         | 2018-07-03 | 5            |
++-----------+-----------+------------+--------------+
+
+Result table:
++-----------+
+| fraction  |
++-----------+
+| 0.33      |
++-----------+
+Only the player with id 1 logged back in after the first day he had logged in so the answer is 1/3 = 0.33
+
+Solutions:
+a) Using cte and Window function:
+with c1 as (
+Select *, min(event_date) over(partition by player_id order by event_date) as first_date
+from Activity),
+
+c2 as (
+Select *, Case when event_date=dateadd(day,1,first_date) then 1 else 0 end as next_day
+from c1)
+
+SELECT ROUND(cast(SUM(next_day) as float)/cast(COUNT(DISTINCT player_id) as float), 2) AS fraction
+FROM c2
+
+b) Using cte, self join and Window function:
+with c1 as (
+Select *, min(event_date) over(partition by player_id order by event_date) as first_date
+from Activity),
+
+c2 as (
+select a.player_id, a.event_date
+from activity a
+inner join c1 on a.player_id = c1.player_id
+where a.event_date = dateadd(day,1,c1.event_date))
+
+select ROUND(CAST((select count(distinct c2.player_id) from c2) as float)/CAST((select count(distinct c1.player_id) from c1) as float),2) as fraction
+----------------------------------------------------------------------------------------------------------
+#181 - Employees Earning More Than Their Managers
+
+Schema:
+Create table If Not Exists Employee (Id int, Name varchar(255), Salary int, ManagerId int)
+Truncate table Employee
+insert into Employee (Id, Name, Salary, ManagerId) values ('1', 'Joe', '70000', '3')
+insert into Employee (Id, Name, Salary, ManagerId) values ('2', 'Henry', '80000', '4')
+insert into Employee (Id, Name, Salary, ManagerId) values ('3', 'Sam', '60000', 'None')
+insert into Employee (Id, Name, Salary, ManagerId) values ('4', 'Max', '90000', 'None')
+
+The Employee table holds all employees including their managers. Every employee has an Id, and there is also a column for the manager Id.
+
++----+-------+--------+-----------+
+| Id | Name  | Salary | ManagerId |
++----+-------+--------+-----------+
+| 1  | Joe   | 70000  | 3         |
+| 2  | Henry | 80000  | 4         |
+| 3  | Sam   | 60000  | NULL      |
+| 4  | Max   | 90000  | NULL      |
++----+-------+--------+-----------+
+Given the Employee table, write a SQL query that finds out employees who earn more than their managers. For the above table, Joe is the only employee who earns more than his manager.
+
++----------+
+| Employee |
++----------+
+| Joe      |
++----------+
+
+Solution:
+1) Using Self Join:
+Select E.Name as Employee
+from Employee E
+JOIN Employee M
+ON E.ManagerId = M.Id
+WHERE E.Salary>M.Salary
+
+2) Using Cross Join:
+SELECT a.Name as Employee
+FROM Employee a,Employee d
+WHERE a.ManagerId=d.Id
+AND a.salary > d.salary
+
+----------------------------------------------------------------------------------------------------------
+#577 - Employee Bonus
+
+Schema:
+Create table If Not Exists Employee (EmpId int, Name varchar(255), Supervisor int, Salary int)
+Create table If Not Exists Bonus (EmpId int, Bonus int)
+Truncate table Employee
+insert into Employee (EmpId, Name, Supervisor, Salary) values ('3', 'Brad', 'None', '4000')
+insert into Employee (EmpId, Name, Supervisor, Salary) values ('1', 'John', '3', '1000')
+insert into Employee (EmpId, Name, Supervisor, Salary) values ('2', 'Dan', '3', '2000')
+insert into Employee (EmpId, Name, Supervisor, Salary) values ('4', 'Thomas', '3', '4000')
+Truncate table Bonus
+insert into Bonus (EmpId, Bonus) values ('2', '500')
+insert into Bonus (EmpId, Bonus) values ('4', '2000')
+
+Select all employee's name and bonus whose bonus is < 1000.
+
+Table:Employee
+
++-------+--------+-----------+--------+
+| empId |  name  | supervisor| salary |
++-------+--------+-----------+--------+
+|   1   | John   |  3        | 1000   |
+|   2   | Dan    |  3        | 2000   |
+|   3   | Brad   |  null     | 4000   |
+|   4   | Thomas |  3        | 4000   |
++-------+--------+-----------+--------+
+empId is the primary key column for this table.
+Table: Bonus
+
++-------+-------+
+| empId | bonus |
++-------+-------+
+| 2     | 500   |
+| 4     | 2000  |
++-------+-------+
+empId is the primary key column for this table.
+Example ouput:
+
++-------+-------+
+| name  | bonus |
++-------+-------+
+| John  | null  |
+| Dan   | 500   |
+| Brad  | null  |
++-------+-------+
+
+Solution:
+1) Using Join and where clause
+Select E.name, b.bonus
+from Employee E
+left JOIN Bonus b
+ON E.empId=b.empId
+WHERE bonus<1000 or bonus is null
+
+----------------------------------------------------------------------------------------------------------
+#574 - Winning Candidate
+
+Schema:
+Create table If Not Exists Candidate (id int, Name varchar(255))
+Create table If Not Exists Vote (id int, CandidateId int)
+Truncate table Candidate
+insert into Candidate (id, Name) values ('1', 'A')
+insert into Candidate (id, Name) values ('2', 'B')
+insert into Candidate (id, Name) values ('3', 'C')
+insert into Candidate (id, Name) values ('4', 'D')
+insert into Candidate (id, Name) values ('5', 'E')
+Truncate table Vote
+insert into Vote (id, CandidateId) values ('1', '2')
+insert into Vote (id, CandidateId) values ('2', '4')
+insert into Vote (id, CandidateId) values ('3', '3')
+insert into Vote (id, CandidateId) values ('4', '2')
+insert into Vote (id, CandidateId) values ('5', '5')
+
+Table: Candidate
+
++-----+---------+
+| id  | Name    |
++-----+---------+
+| 1   | A       |
+| 2   | B       |
+| 3   | C       |
+| 4   | D       |
+| 5   | E       |
++-----+---------+
+Table: Vote
+
++-----+--------------+
+| id  | CandidateId  |
++-----+--------------+
+| 1   |     2        |
+| 2   |     4        |
+| 3   |     3        |
+| 4   |     2        |
+| 5   |     5        |
++-----+--------------+
+id is the auto-increment primary key,
+CandidateId is the id appeared in Candidate table.
+Write a sql to find the name of the winning candidate, the above example will return the winner B.
+
++------+
+| Name |
++------+
+| B    |
++------+
+
+Solutions:
+1) Using temp table and where clause
+Select Name
+from Candidate
+where id in (
+Select top 1 CandidateId
+from Vote
+group by CandidateId
+order by count(id) DESC)
+
+2) Using temp table and join
+SELECT name AS Name
+FROM Candidate
+JOIN (SELECT Candidateid
+    FROM Vote
+    GROUP BY Candidateid
+    ORDER BY COUNT(*) DESC
+    LIMIT 1) AS winner
+WHERE Candidate.id = winner.Candidateid
+
+----------------------------------------------------------------------------------------------------------
+#570 - Managers with at Least 5 Direct Reports
+
+Schema:
+Create table If Not Exists Employee (Id int, Name varchar(255), Department varchar(255), ManagerId int)
+Truncate table Employee
+insert into Employee (Id, Name, Department, ManagerId) values ('101', 'John', 'A', 'None')
+insert into Employee (Id, Name, Department, ManagerId) values ('102', 'Dan', 'A', '101')
+insert into Employee (Id, Name, Department, ManagerId) values ('103', 'James', 'A', '101')
+insert into Employee (Id, Name, Department, ManagerId) values ('104', 'Amy', 'A', '101')
+insert into Employee (Id, Name, Department, ManagerId) values ('105', 'Anne', 'A', '101')
+insert into Employee (Id, Name, Department, ManagerId) values ('106', 'Ron', 'B', '101')
+
+The Employee table holds all employees including their managers. Every employee has an Id, and there is also a column for the manager Id.
+
++------+----------+-----------+----------+
+|Id    |Name 	  |Department |ManagerId |
++------+----------+-----------+----------+
+|101   |John 	  |A 	      |null      |
+|102   |Dan 	  |A 	      |101       |
+|103   |James 	  |A 	      |101       |
+|104   |Amy 	  |A 	      |101       |
+|105   |Anne 	  |A 	      |101       |
+|106   |Ron 	  |B 	      |101       |
++------+----------+-----------+----------+
+Given the Employee table, write a SQL query that finds out managers with at least 5 direct report. For the above table, your SQL query should return:
+
++-------+
+| Name  |
++-------+
+| John  |
++-------+
+Note:
+No one would report to himself.
+
+Solution:
+1) Using Temp table and where clause
+Select Name
+from Employee
+where Id in (
+Select ManagerId
+from Employee
+where ManagerId is not null
+group by ManagerId
+having count(Id)>=5)
+
+2) Using Temp table and JOIN
+SELECT Name
+FROM Employee AS t1
+JOIN (SELECT ManagerId
+      FROM Employee
+      GROUP BY ManagerId
+      HAVING COUNT(ManagerId) >= 5) AS t2
+ON t1.Id = t2.ManagerId
+
+----------------------------------------------------------------------------------------------------------
+#627 - Swap Salary
+
+Schema:
+create table if not exists salary(id int, name varchar(100), sex char(1), salary int)
+Truncate table salary
+insert into salary (id, name, sex, salary) values ('1', 'A', 'm', '2500')
+insert into salary (id, name, sex, salary) values ('2', 'B', 'f', '1500')
+insert into salary (id, name, sex, salary) values ('3', 'C', 'm', '5500')
+insert into salary (id, name, sex, salary) values ('4', 'D', 'f', '500')
+
+Given a table salary, such as the one below, that has m=male and f=female values. Swap all f and m values
+(i.e., change all f values to m and vice versa) with a single update statement and no intermediate temp table.
+Note that you must write a single update statement, DO NOT write any select statement for this problem.
+
+Example:
+
+| id | name | sex | salary |
+|----|------|-----|--------|
+| 1  | A    | m   | 2500   |
+| 2  | B    | f   | 1500   |
+| 3  | C    | m   | 5500   |
+| 4  | D    | f   | 500    |
+After running your update statement, the above salary table should have the following rows:
+| id | name | sex | salary |
+|----|------|-----|--------|
+| 1  | A    | f   | 2500   |
+| 2  | B    | m   | 1500   |
+| 3  | C    | f   | 5500   |
+| 4  | D    | m   | 500    |
+
+Solution:
+1) Simple Solution with only one Update Statement:
+Update salary
+SET sex = CASE WHEN sex = 'm' Then 'f'
+               WHEN sex = 'f' Then 'm'
+               ELSE sex -- just in case it contains a new value, we keep it
+               END
+
+----------------------------------------------------------------------------------------------------------
+#1045 - Customers Who Bought All Products
+
+Schema:
+Create table If Not Exists Customer (customer_id int, product_key int)
+Create table Product (product_key int)
+Truncate table Customer
+insert into Customer (customer_id, product_key) values ('1', '5')
+insert into Customer (customer_id, product_key) values ('2', '6')
+insert into Customer (customer_id, product_key) values ('3', '5')
+insert into Customer (customer_id, product_key) values ('3', '6')
+insert into Customer (customer_id, product_key) values ('1', '6')
+Truncate table Product
+insert into Product (product_key) values ('5')
+insert into Product (product_key) values ('6')
+
+Table: Customer
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| customer_id | int     |
+| product_key | int     |
++-------------+---------+
+product_key is a foreign key to Product table.
+
+Table: Product
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| product_key | int     |
++-------------+---------+
+product_key is the primary key column for this table.
+
+Write an SQL query for a report that provides the customer ids
+from the Customer table that bought all the products in the Product table.
+
+Return the result table in any order.
+The query result format is in the following example:
+
+Customer table:
++-------------+-------------+
+| customer_id | product_key |
++-------------+-------------+
+| 1           | 5           |
+| 2           | 6           |
+| 3           | 5           |
+| 3           | 6           |
+| 1           | 6           |
++-------------+-------------+
+
+Product table:
++-------------+
+| product_key |
++-------------+
+| 5           |
+| 6           |
++-------------+
+
+Result table:
++-------------+
+| customer_id |
++-------------+
+| 1           |
+| 3           |
++-------------+
+The customers who bought all the products (5 and 6) are customers with id 1 and 3.
+
+Solution:
+SELECT customer_id
+FROM customer
+GROUP BY customer_id
+HAVING COUNT(DISTINCT product_key) = (SELECT COUNT(product_key) FROM product)
+
+----------------------------------------------------------------------------------------------------------
+#578 - Get Highest Answer Rate Question
+
+Schema:
+Create table If Not Exists survey_log (id int, action varchar(255), question_id int, answer_id int, q_num int, timestamp int)
+Truncate table survey_log
+insert into survey_log (id, action, question_id, answer_id, q_num, timestamp) values ('5', 'show', '285', 'None', '1', '123')
+insert into survey_log (id, action, question_id, answer_id, q_num, timestamp) values ('5', 'answer', '285', '124124', '1', '124')
+insert into survey_log (id, action, question_id, answer_id, q_num, timestamp) values ('5', 'show', '369', 'None', '2', '125')
+insert into survey_log (id, action, question_id, answer_id, q_num, timestamp) values ('5', 'skip', '369', 'None', '2', '126')
+
+Get the highest answer rate question from a table survey_log with these columns: id, action, question_id, answer_id, q_num, timestamp.
+id means user id; action has these kind of values: "show", "answer", "skip"; answer_id is not null when action column is "answer",
+while is null for "show" and "skip"; q_num is the numeral order of the question in current session.
+
+Write a sql query to identify the question which has the highest answer rate.
+
+Example:
+Input:
++------+-----------+--------------+------------+-----------+------------+
+| id   | action    | question_id  | answer_id  | q_num     | timestamp  |
++------+-----------+--------------+------------+-----------+------------+
+| 5    | show      | 285          | null       | 1         | 123        |
+| 5    | answer    | 285          | 124124     | 1         | 124        |
+| 5    | show      | 369          | null       | 2         | 125        |
+| 5    | skip      | 369          | null       | 2         | 126        |
++------+-----------+--------------+------------+-----------+------------+
+Output:
++-------------+
+| survey_log  |
++-------------+
+|    285      |
++-------------+
+Explanation:
+question 285 has answer rate 1/1, while question 369 has 0/1 answer rate, so output 285.
+
+Note: The highest answer rate meaning is: answer number's ratio in show number in the same question.
+
+Solution:
+select top 1 question_id as survey_log
+from survey_log
+group by question_id
+order by cast(sum(case when answer_id is not null then 1 else 0 end) as float)/count(question_id) desc
+
+----------------------------------------------------------------------------------------------------------
+#619 - Biggest Single Number
+
+Schema:
+Create table If Not Exists my_numbers (num int)
+Truncate table my_numbers
+insert into my_numbers (num) values ('8')
+insert into my_numbers (num) values ('8')
+insert into my_numbers (num) values ('3')
+insert into my_numbers (num) values ('3')
+insert into my_numbers (num) values ('1')
+insert into my_numbers (num) values ('4')
+insert into my_numbers (num) values ('5')
+insert into my_numbers (num) values ('6')
+
+Table my_numbers contains many numbers in column num including duplicated ones.
+Can you write a SQL query to find the biggest number, which only appears once.
+
++---+
+|num|
++---+
+| 8 |
+| 8 |
+| 3 |
+| 3 |
+| 1 |
+| 4 |
+| 5 |
+| 6 |
+For the sample data above, your query should return the following result:
++---+
+|num|
++---+
+| 6 |
+Note:
+If there is no such number, just output null.
+
+Solutions:
+1) Using CTE:
+with cte as (
+Select num
+from my_numbers
+group by num
+having count(num) = 1)
+
+Select max(num) as num
+from cte
+
+2) Using subquery:
+select max(num) as num
+from (
+	select num
+	from number
+	group by num
+	having count(*) = 1
+) t
+
+----------------------------------------------------------------------------------------------------------
+#620 - Not Boring Movies
+
+Schema:
+Create table If Not Exists cinema (id int, movie varchar(255), description varchar(255), rating float(2, 1))
+Truncate table cinema
+insert into cinema (id, movie, description, rating) values ('1', 'War', 'great 3D', '8.9')
+insert into cinema (id, movie, description, rating) values ('2', 'Science', 'fiction', '8.5')
+insert into cinema (id, movie, description, rating) values ('3', 'irish', 'boring', '6.2')
+insert into cinema (id, movie, description, rating) values ('4', 'Ice song', 'Fantacy', '8.6')
+insert into cinema (id, movie, description, rating) values ('5', 'House card', 'Interesting', '9.1')
+
+X city opened a new cinema, many people would like to go to this cinema. The cinema also gives out a poster indicating the movies’ ratings and descriptions.
+Please write a SQL query to output movies with an odd numbered ID and a description that is not 'boring'. Order the result by rating.
+
+For example, table cinema:
+
++---------+-----------+--------------+-----------+
+|   id    | movie     |  description |  rating   |
++---------+-----------+--------------+-----------+
+|   1     | War       |   great 3D   |   8.9     |
+|   2     | Science   |   fiction    |   8.5     |
+|   3     | irish     |   boring     |   6.2     |
+|   4     | Ice song  |   Fantacy    |   8.6     |
+|   5     | House card|   Interesting|   9.1     |
++---------+-----------+--------------+-----------+
+For the example above, the output should be:
++---------+-----------+--------------+-----------+
+|   id    | movie     |  description |  rating   |
++---------+-----------+--------------+-----------+
+|   5     | House card|   Interesting|   9.1     |
+|   1     | War       |   great 3D   |   8.9     |
++---------+-----------+--------------+-----------+
+
+Solution:
+Select *
+from cinema
+where id % 2 <> 0 and description not like '%boring%'
+order by rating desc
+
+----------------------------------------------------------------------------------------------------------
+#1050 - Actors and Directors Who Cooperated At Least Three Times
+
+Schema:
+Create table If Not Exists ActorDirector (actor_id int, director_id int, timestamp int)
+Truncate table ActorDirector
+insert into ActorDirector (actor_id, director_id, timestamp) values ('1', '1', '0')
+insert into ActorDirector (actor_id, director_id, timestamp) values ('1', '1', '1')
+insert into ActorDirector (actor_id, director_id, timestamp) values ('1', '1', '2')
+insert into ActorDirector (actor_id, director_id, timestamp) values ('1', '2', '3')
+insert into ActorDirector (actor_id, director_id, timestamp) values ('1', '2', '4')
+insert into ActorDirector (actor_id, director_id, timestamp) values ('2', '1', '5')
+insert into ActorDirector (actor_id, director_id, timestamp) values ('2', '1', '6')
+
+Table: ActorDirector
+
++-------------+---------+
+| Column Name | Type    |
++-------------+---------+
+| actor_id    | int     |
+| director_id | int     |
+| timestamp   | int     |
++-------------+---------+
+timestamp is the primary key column for this table.
+
+Write a SQL query for a report that provides the pairs (actor_id, director_id) where the actor have cooperated with the director at least 3 times.
+
+Example:
+ActorDirector table:
++-------------+-------------+-------------+
+| actor_id    | director_id | timestamp   |
++-------------+-------------+-------------+
+| 1           | 1           | 0           |
+| 1           | 1           | 1           |
+| 1           | 1           | 2           |
+| 1           | 2           | 3           |
+| 1           | 2           | 4           |
+| 2           | 1           | 5           |
+| 2           | 1           | 6           |
++-------------+-------------+-------------+
+
+Result table:
++-------------+-------------+
+| actor_id    | director_id |
++-------------+-------------+
+| 1           | 1           |
++-------------+-------------+
+The only pair is (1, 1) where they cooperated exactly 3 times.
+
+Solution:
+Select actor_id,director_id
+from ActorDirector
+group by actor_id,director_id
+having count(timestamp)>=3
+
+----------------------------------------------------------------------------------------------------------
+#1068 - Product Sales Analysis I
+
+Schema:
+Create table Sales (sale_id int, product_id int, year int, quantity int, price int)
+Create table Product (product_id int, product_name varchar(10))
+Truncate table Sales
+insert into Sales (sale_id, product_id, year, quantity, price) values ('1', '100', '2008', '10', '5000')
+insert into Sales (sale_id, product_id, year, quantity, price) values ('2', '100', '2009', '12', '5000')
+insert into Sales (sale_id, product_id, year, quantity, price) values ('7', '200', '2011', '15', '9000')
+Truncate table Product
+insert into Product (product_id, product_name) values ('100', 'Nokia')
+insert into Product (product_id, product_name) values ('200', 'Apple')
+insert into Product (product_id, product_name) values ('300', 'Samsung')
+
+Table: Sales
+
++-------------+-------+
+| Column Name | Type  |
++-------------+-------+
+| sale_id     | int   |
+| product_id  | int   |
+| year        | int   |
+| quantity    | int   |
+| price       | int   |
++-------------+-------+
+(sale_id, year) is the primary key of this table.
+product_id is a foreign key to Product table.
+Note that the price is per unit.
+Table: Product
+
++--------------+---------+
+| Column Name  | Type    |
++--------------+---------+
+| product_id   | int     |
+| product_name | varchar |
++--------------+---------+
+product_id is the primary key of this table.
+
+
+Write an SQL query that reports all product names of the products in the Sales table along with their selling year
+and price.
+
+For example:
+
+Sales table:
++---------+------------+------+----------+-------+
+| sale_id | product_id | year | quantity | price |
++---------+------------+------+----------+-------+
+| 1       | 100        | 2008 | 10       | 5000  |
+| 2       | 100        | 2009 | 12       | 5000  |
+| 7       | 200        | 2011 | 15       | 9000  |
++---------+------------+------+----------+-------+
+
+Product table:
++------------+--------------+
+| product_id | product_name |
++------------+--------------+
+| 100        | Nokia        |
+| 200        | Apple        |
+| 300        | Samsung      |
++------------+--------------+
+
+Result table:
++--------------+-------+-------+
+| product_name | year  | price |
++--------------+-------+-------+
+| Nokia        | 2008  | 5000  |
+| Nokia        | 2009  | 5000  |
+| Apple        | 2011  | 9000  |
++--------------+-------+-------+
+
+Solution:
+Select p.product_name, s.year, s.price
+from Sales s
+join Product p
+on s.product_id = p.product_id
+
+----------------------------------------------------------------------------------------------------------
+#1069 - Product Sales Analysis II
+
+Schema:
+Create table Sales (sale_id int, product_id int, year int, quantity int, price int)
+Create table Product (product_id int, product_name varchar(10))
+Truncate table Sales
+insert into Sales (sale_id, product_id, year, quantity, price) values ('1', '100', '2008', '10', '5000')
+insert into Sales (sale_id, product_id, year, quantity, price) values ('2', '100', '2009', '12', '5000')
+insert into Sales (sale_id, product_id, year, quantity, price) values ('7', '200', '2011', '15', '9000')
+Truncate table Product
+insert into Product (product_id, product_name) values ('100', 'Nokia')
+insert into Product (product_id, product_name) values ('200', 'Apple')
+insert into Product (product_id, product_name) values ('300', 'Samsung')
+
+Table: Sales
++-------------+-------+
+| Column Name | Type  |
++-------------+-------+
+| sale_id     | int   |
+| product_id  | int   |
+| year        | int   |
+| quantity    | int   |
+| price       | int   |
++-------------+-------+
+sale_id is the primary key of this table.
+product_id is a foreign key to Product table.
+Note that the price is per unit.
+
+Table: Product
++--------------+---------+
+| Column Name  | Type    |
++--------------+---------+
+| product_id   | int     |
+| product_name | varchar |
++--------------+---------+
+product_id is the primary key of this table.
+
+Write an SQL query that reports the total quantity sold for every product id.
+The query result format is in the following example:
+
+Sales table:
++---------+------------+------+----------+-------+
+| sale_id | product_id | year | quantity | price |
++---------+------------+------+----------+-------+
+| 1       | 100        | 2008 | 10       | 5000  |
+| 2       | 100        | 2009 | 12       | 5000  |
+| 7       | 200        | 2011 | 15       | 9000  |
++---------+------------+------+----------+-------+
+
+Product table:
++------------+--------------+
+| product_id | product_name |
++------------+--------------+
+| 100        | Nokia        |
+| 200        | Apple        |
+| 300        | Samsung      |
++------------+--------------+
+
+Result table:
++--------------+----------------+
+| product_id   | total_quantity |
++--------------+----------------+
+| 100          | 22             |
+| 200          | 15             |
++--------------+----------------+
+
+Solution:
+Select product_id, sum(quantity) as total_quantity
+from Sales
+group by product_id
+
+----------------------------------------------------------------------------------------------------------
+#618 - Students Report By Geography
+
+Schema:
+Create table If Not Exists student (name varchar(50), continent varchar(7))
+Truncate table student
+insert into student (name, continent) values ('Jane', 'America')
+insert into student (name, continent) values ('Pascal', 'Europe')
+insert into student (name, continent) values ('Xi', 'Asia')
+insert into student (name, continent) values ('Jack', 'America')
+
+A U.S graduate school has students from Asia, Europe and America. The students' location information
+are stored in table student as below.
+
+| name   | continent |
+|--------|-----------|
+| Jack   | America   |
+| Pascal | Europe    |
+| Xi     | Asia      |
+| Jane   | America   |
+
+Pivot the continent column in this table so that each name is sorted alphabetically and
+displayed underneath its corresponding continent. The output headers should be America, Asia and Europe respectively. It is guaranteed that the student number from America is no less than either Asia or Europe.
+
+For the sample input, the output is:
+| America | Asia | Europe |
+|---------|------|--------|
+| Jack    | Xi   | Pascal |
+| Jane    |      |        |
+
+Follow-up: If it is unknown which continent has the most students, can you write a query to generate the student report?
+
+Solution:
+
+Solution 1: Using Window function and temp table:
+SELECT America, Asia, Europe
+FROM(
+    SELECT continentorder,
+    MAX(CASE WHEN continent = 'America' THEN name END) AS America,
+    MAX(CASE WHEN continent = 'Europe' THEN name END) AS Europe,
+    MAX(CASE WHEN continent = 'Asia' THEN name END) AS Asia
+    FROM (
+        SELECT *,
+        ROW_NUMBER()OVER(PARTITION BY continent ORDER BY name) AS continentorder
+        FROM student
+         ) AS SOURCE
+   GROUP BY continentorder
+)temp
+
+Solution 2: Using Window function and cte:
+with us as
+(select name, row_number() over (order by name) as rn from student where continent = 'America'
+),
+asia as
+(select name, row_number() over (order by name) as rn from student where continent = 'Asia'
+),
+eu as
+(select name, row_number() over (order by name) as rn from student where continent = 'Europe'
+)
+select us.name as America,  asia.name as Asia,  eu.name as Europe
+from us
+left join asia
+on us.rn = asia.rn
+left join eu
+
+on us.rn = eu.rn
+----------------------------------------------------------------------------------------------------------
+#262 - Trips and Users
+
+Schema:
+Create table If Not Exists Trips (Id int, Client_Id int, Driver_Id int, City_Id int, Status ENUM('completed', 'cancelled_by_driver', 'cancelled_by_client'), Request_at varchar(50))
+Create table If Not Exists Users (Users_Id int, Banned varchar(50), Role ENUM('client', 'driver', 'partner'))
+Truncate table Trips
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('1', '1', '10', '1', 'completed', '2013-10-01')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('2', '2', '11', '1', 'cancelled_by_driver', '2013-10-01')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('3', '3', '12', '6', 'completed', '2013-10-01')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('4', '4', '13', '6', 'cancelled_by_client', '2013-10-01')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('5', '1', '10', '1', 'completed', '2013-10-02')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('6', '2', '11', '6', 'completed', '2013-10-02')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('7', '3', '12', '6', 'completed', '2013-10-02')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('8', '2', '12', '12', 'completed', '2013-10-03')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('9', '3', '10', '12', 'completed', '2013-10-03')
+insert into Trips (Id, Client_Id, Driver_Id, City_Id, Status, Request_at) values ('10', '4', '13', '12', 'cancelled_by_driver', '2013-10-03')
+Truncate table Users
+insert into Users (Users_Id, Banned, Role) values ('1', 'No', 'client')
+insert into Users (Users_Id, Banned, Role) values ('2', 'Yes', 'client')
+insert into Users (Users_Id, Banned, Role) values ('3', 'No', 'client')
+insert into Users (Users_Id, Banned, Role) values ('4', 'No', 'client')
+insert into Users (Users_Id, Banned, Role) values ('10', 'No', 'driver')
+insert into Users (Users_Id, Banned, Role) values ('11', 'No', 'driver')
+insert into Users (Users_Id, Banned, Role) values ('12', 'No', 'driver')
+insert into Users (Users_Id, Banned, Role) values ('13', 'No', 'driver')
+
+The Trips table holds all taxi trips. Each trip has a unique Id,
+while Client_Id and Driver_Id are both foreign keys to the Users_Id at the Users table.
+Status is an ENUM type of (‘completed’, ‘cancelled_by_driver’, ‘cancelled_by_client’).
+
++----+-----------+-----------+---------+--------------------+----------+
+| Id | Client_Id | Driver_Id | City_Id |        Status      |Request_at|
++----+-----------+-----------+---------+--------------------+----------+
+| 1  |     1     |    10     |    1    |     completed      |2013-10-01|
+| 2  |     2     |    11     |    1    | cancelled_by_driver|2013-10-01|
+| 3  |     3     |    12     |    6    |     completed      |2013-10-01|
+| 4  |     4     |    13     |    6    | cancelled_by_client|2013-10-01|
+| 5  |     1     |    10     |    1    |     completed      |2013-10-02|
+| 6  |     2     |    11     |    6    |     completed      |2013-10-02|
+| 7  |     3     |    12     |    6    |     completed      |2013-10-02|
+| 8  |     2     |    12     |    12   |     completed      |2013-10-03|
+| 9  |     3     |    10     |    12   |     completed      |2013-10-03|
+| 10 |     4     |    13     |    12   | cancelled_by_driver|2013-10-03|
++----+-----------+-----------+---------+--------------------+----------+
+The Users table holds all users. Each user has an unique Users_Id, and Role is an ENUM type of (‘client’, ‘driver’, ‘partner’).
+
++----------+--------+--------+
+| Users_Id | Banned |  Role  |
++----------+--------+--------+
+|    1     |   No   | client |
+|    2     |   Yes  | client |
+|    3     |   No   | client |
+|    4     |   No   | client |
+|    10    |   No   | driver |
+|    11    |   No   | driver |
+|    12    |   No   | driver |
+|    13    |   No   | driver |
++----------+--------+--------+
+Write a SQL query to find the cancellation rate of requests made by unbanned users (both client and driver must be unbanned) between Oct 1, 2013 and Oct 3, 2013.
+The cancellation rate is computed by dividing the number of canceled (by client or driver) requests made by unbanned users by the total number of requests made by unbanned users.
+
+For the above tables, your SQL query should return the following rows with the cancellation rate being rounded to two decimal places.
+
++------------+-------------------+
+|     Day    | Cancellation Rate |
++------------+-------------------+
+| 2013-10-01 |       0.33        |
+| 2013-10-02 |       0.00        |
+| 2013-10-03 |       0.50        |
++------------+-------------------+
+
+Solution:
+1) Solution using joins for the Where clause conditions:
+select t.Request_at as Day,
+Round((cast(sum(case when t.Status like 'cancelled_%' then 1 else 0 end) as float)/cast(count(*) as float)),2) as [Cancellation Rate]
+from Trips t
+inner join Users u1
+on t.Client_Id = u1.Users_Id
+inner join Users u2
+on t.Driver_Id = u2.Users_Id
+where t.Request_at between '2013-10-01' and '2013-10-03' and u1.Banned='No' and u2.Banned='No'
+group by t.Request_at
+
+2) Same solution with subqueries in the where clause:
+Select t.Request_at as Day,
+Round(sum(cast((case when t.Status like 'cancelled%' then 1 else 0 end) as float))/cast(count(*) as float),2) as [Cancellation Rate]
+from Trips t
+where (t.Request_at between '2013-10-01' and '2013-10-03') and
+(Client_Id in (Select Users_Id FROM Users WHERE Banned='No')) and
+( Driver_Id in (Select Users_Id FROM Users WHERE Banned='No'))
+group by t.Request_at
+
+----------------------------------------------------------------------------------------------------------
+#1194 - Tournament Winners
+
+Schema:
+Create table If Not Exists Players (player_id int, group_id int)
+Create table If Not Exists Matches (match_id int, first_player int, second_player int, first_score int, second_score int)
+Truncate table Players
+insert into Players (player_id, group_id) values ('10', '2')
+insert into Players (player_id, group_id) values ('15', '1')
+insert into Players (player_id, group_id) values ('20', '3')
+insert into Players (player_id, group_id) values ('25', '1')
+insert into Players (player_id, group_id) values ('30', '1')
+insert into Players (player_id, group_id) values ('35', '2')
+insert into Players (player_id, group_id) values ('40', '3')
+insert into Players (player_id, group_id) values ('45', '1')
+insert into Players (player_id, group_id) values ('50', '2')
+Truncate table Matches
+insert into Matches (match_id, first_player, second_player, first_score, second_score) values ('1', '15', '45', '3', '0')
+insert into Matches (match_id, first_player, second_player, first_score, second_score) values ('2', '30', '25', '1', '2')
+insert into Matches (match_id, first_player, second_player, first_score, second_score) values ('3', '30', '15', '2', '0')
+insert into Matches (match_id, first_player, second_player, first_score, second_score) values ('4', '40', '20', '5', '2')
+insert into Matches (match_id, first_player, second_player, first_score, second_score) values ('5', '35', '50', '1', '1')
+
+Table: Players
+
++-------------+-------+
+| Column Name | Type  |
++-------------+-------+
+| player_id   | int   |
+| group_id    | int   |
++-------------+-------+
+player_id is the primary key of this table.
+Each row of this table indicates the group of each player.
+Table: Matches
+
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| match_id      | int     |
+| first_player  | int     |
+| second_player | int     |
+| first_score   | int     |
+| second_score  | int     |
++---------------+---------+
+match_id is the primary key of this table.
+Each row is a record of a match, first_player and second_player contain the player_id of each match.
+first_score and second_score contain the number of points of the first_player and second_player respectively.
+You may assume that, in each match, players belongs to the same group.
+
+The winner in each group is the player who scored the maximum total points within the group. In the case of a tie, the lowest player_id wins.
+Write an SQL query to find the winner in each group.
+The query result format is in the following example:
+
+Players table:
++-----------+------------+
+| player_id | group_id   |
++-----------+------------+
+| 15        | 1          |
+| 25        | 1          |
+| 30        | 1          |
+| 45        | 1          |
+| 10        | 2          |
+| 35        | 2          |
+| 50        | 2          |
+| 20        | 3          |
+| 40        | 3          |
++-----------+------------+
+
+Matches table:
++------------+--------------+---------------+-------------+--------------+
+| match_id   | first_player | second_player | first_score | second_score |
++------------+--------------+---------------+-------------+--------------+
+| 1          | 15           | 45            | 3           | 0            |
+| 2          | 30           | 25            | 1           | 2            |
+| 3          | 30           | 15            | 2           | 0            |
+| 4          | 40           | 20            | 5           | 2            |
+| 5          | 35           | 50            | 1           | 1            |
++------------+--------------+---------------+-------------+--------------+
+
+Result table:
++-----------+------------+
+| group_id  | player_id  |
++-----------+------------+
+| 1         | 15         |
+| 2         | 35         |
+| 3         | 40         |
++-----------+------------+
+
+Solution:
+1) Using CTE and Window function:
+With a as(
+Select players, group_id, sum(score) as score
+from (Select a.match_id, a.first_player as players, a.first_score as score,  b.group_id
+from Matches a
+join Players b
+on a.first_player = b.player_id
+union all
+Select a.match_id, a.second_player as players, a.second_score as score, b.group_id
+from Matches a
+join Players b
+on a.second_player = b.player_id) a
+group by players, group_id),
+
+b as(
+Select *, dense_rank() over(partition by group_id order by score desc) as r
+from a
+)
+
+SELECT group_id, MIN(players) as player_id
+from b
+where r=1
+group by group_id
+
+
+2) Without Union:
+with t as(
+select p.player_id, p.group_id,
+sum(
+case when p.player_id = m.first_player then first_score else second_score end
+) as player_score
+from Players p
+join Matches m on p.player_id = m.first_player or p.player_id = m.second_player
+group by p.player_id, p.group_id),
+t2 as(
+select group_id, player_id,
+row_number() over (partition by group_id order by player_id) as row_num
+from t
+where (group_id, player_score) in (select group_id, max(player_score) from t group by group_id))
+select group_id, player_id
+from t2
+where row_num = 1
+
+----------------------------------------------------------------------------------------------------------
+#1479 - Sales by Day of the Week
+
+Schema:
+Create table If Not Exists Orders (order_id int, customer_id int, order_date date, item_id varchar(30), quantity int)
+Create table If Not Exists Items (item_id varchar(30), item_name varchar(30), item_category varchar(30))
+Truncate table Orders
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('1', '1', '2020-06-01', '1', '10')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('2', '1', '2020-06-08', '2', '10')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('3', '2', '2020-06-02', '1', '5')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('4', '3', '2020-06-03', '3', '5')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('5', '4', '2020-06-04', '4', '1')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('6', '4', '2020-06-05', '5', '5')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('7', '5', '2020-06-05', '1', '10')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('8', '5', '2020-06-14', '4', '5')
+insert into Orders (order_id, customer_id, order_date, item_id, quantity) values ('9', '5', '2020-06-21', '3', '5')
+Truncate table Items
+insert into Items (item_id, item_name, item_category) values ('1', 'LC Alg. Book', 'Book')
+insert into Items (item_id, item_name, item_category) values ('2', 'LC DB. Book', 'Book')
+insert into Items (item_id, item_name, item_category) values ('3', 'LC SmarthPhone', 'Phone')
+insert into Items (item_id, item_name, item_category) values ('4', 'LC Phone 2020', 'Phone')
+insert into Items (item_id, item_name, item_category) values ('5', 'LC SmartGlass', 'Glasses')
+insert into Items (item_id, item_name, item_category) values ('6', 'LC T-Shirt XL', 'T-shirt')
+
+Table: Orders
++---------------+---------+
+| Column Name   | Type    |
++---------------+---------+
+| order_id      | int     |
+| customer_id   | int     |
+| order_date    | date    |
+| item_id       | varchar |
+| quantity      | int     |
++---------------+---------+
+(ordered_id, item_id) is the primary key for this table.
+This table contains information of the orders placed.
+order_date is the date when item_id was ordered by the customer with id customer_id.
+
+
+Table: Items
++---------------------+---------+
+| Column Name         | Type    |
++---------------------+---------+
+| item_id             | varchar |
+| item_name           | varchar |
+| item_category       | varchar |
++---------------------+---------+
+item_id is the primary key for this table.
+item_name is the name of the item.
+item_category is the category of the item.
+
+You are the business owner and would like to obtain a sales report for category items and day of the week.
+Write an SQL query to report how many units in each category have been ordered on each day of the week.
+Return the result table ordered by category.
+The query result format is in the following example:
+
+Orders table:
++------------+--------------+-------------+--------------+-------------+
+| order_id   | customer_id  | order_date  | item_id      | quantity    |
++------------+--------------+-------------+--------------+-------------+
+| 1          | 1            | 2020-06-01  | 1            | 10          |
+| 2          | 1            | 2020-06-08  | 2            | 10          |
+| 3          | 2            | 2020-06-02  | 1            | 5           |
+| 4          | 3            | 2020-06-03  | 3            | 5           |
+| 5          | 4            | 2020-06-04  | 4            | 1           |
+| 6          | 4            | 2020-06-05  | 5            | 5           |
+| 7          | 5            | 2020-06-05  | 1            | 10          |
+| 8          | 5            | 2020-06-14  | 4            | 5           |
+| 9          | 5            | 2020-06-21  | 3            | 5           |
++------------+--------------+-------------+--------------+-------------+
+
+Items table:
++------------+----------------+---------------+
+| item_id    | item_name      | item_category |
++------------+----------------+---------------+
+| 1          | LC Alg. Book   | Book          |
+| 2          | LC DB. Book    | Book          |
+| 3          | LC SmarthPhone | Phone         |
+| 4          | LC Phone 2020  | Phone         |
+| 5          | LC SmartGlass  | Glasses       |
+| 6          | LC T-Shirt XL  | T-Shirt       |
++------------+----------------+---------------+
+
+Result table:
++------------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+
+| Category   | Monday    | Tuesday   | Wednesday | Thursday  | Friday    | Saturday  | Sunday    |
++------------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+
+| Book       | 20        | 5         | 0         | 0         | 10        | 0         | 0         |
+| Glasses    | 0         | 0         | 0         | 0         | 5         | 0         | 0         |
+| Phone      | 0         | 0         | 5         | 1         | 0         | 0         | 10        |
+| T-Shirt    | 0         | 0         | 0         | 0         | 0         | 0         | 0         |
++------------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+
+On Monday (2020-06-01, 2020-06-08) were sold a total of 20 units (10 + 10) in the category Book (ids: 1, 2).
+On Tuesday (2020-06-02) were sold a total of 5 units  in the category Book (ids: 1, 2).
+On Wednesday (2020-06-03) were sold a total of 5 units in the category Phone (ids: 3, 4).
+On Thursday (2020-06-04) were sold a total of 1 unit in the category Phone (ids: 3, 4).
+On Friday (2020-06-05) were sold 10 units in the category Book (ids: 1, 2) and 5 units in Glasses (ids: 5).
+On Saturday there are no items sold.
+On Sunday (2020-06-14, 2020-06-21) were sold a total of 10 units (5 +5) in the category Phone (ids: 3, 4).
+There are no sales of T-Shirt.
+
+Solution:
+1) Without using Pivot:
+Select i.item_category as Category,
+sum(case when datename(weekday, o.order_date) = 'Monday' then quantity else 0 end) as [Monday],
+sum(case when datename(weekday, o.order_date) = 'Tuesday' then quantity else 0 end) as [Tuesday],
+sum(case when datename(weekday, o.order_date) = 'Wednesday' then quantity else 0 end) as [Wednesday],
+sum(case when datename(weekday, o.order_date) = 'Thursday' then quantity else 0 end) as [Thursday],
+sum(case when datename(weekday, o.order_date) = 'Friday' then quantity else 0 end) as [Friday],
+sum(case when datename(weekday, o.order_date) = 'Saturday' then quantity else 0 end) as [Saturday],
+sum(case when datename(weekday, o.order_date) = 'Sunday' then quantity else 0 end) as [Sunday]
+from Orders o
+right join Items i
+on o.item_id = i.item_id
+group by i.item_category
+order by i.item_category
+
+2) Another way to pivot (MySQL)
+select category,
+max(case when day=2 then sold_quantity else 0 end) as 'Monday',
+max(case when day=3 then sold_quantity else 0 end) as 'Tuesday',
+max(case when day=4 then sold_quantity else 0 end) as 'Wednesday',
+max(case when day=5 then sold_quantity else 0 end) as 'Thursday',
+max(case when day=6 then sold_quantity else 0 end) as 'Friday',
+max(case when day=7 then sold_quantity else 0 end) as 'Saturday',
+max(case when day=1 then sold_quantity else 0 end) as 'Sunday'
+from
+(select
+i.item_category category,
+dayofweek(o.order_date) day,
+sum(quantity) sold_quantity
+from
+items i
+left join orders o
+on o.item_id=i.item_id
+group by
+i.item_category,
+dayofweek(o.order_date)) a
+group by
+category order by category;
+
+----------------------------------------------------------------------------------------------------------
+# 584. Find Customer Referee
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#180,#196,#262 - pending
